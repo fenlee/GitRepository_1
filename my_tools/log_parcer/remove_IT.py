@@ -1,6 +1,6 @@
 #!/usr/bin/python2.7 -tt
 
-import re, os, sys, commands, shutil
+import re, os, sys, commands, shutil, subprocess
 
 
 def List(filename):
@@ -36,44 +36,68 @@ def List(filename):
 	return cleanlist
 	
 	
-def removebackup(list):
-	BackupDir = 'RemoveitBackUp'
-	if os.path.exists(BackupDir):
+def backup_and_remove(list):
+	backup_dir = 'remove_it_backup'
+	if os.path.exists(backup_dir):
 		pass
 	else:
-		os.mkdir(BackupDir)
+		os.mkdir(backup_dir)
 	for text in list:
-		print text
-		if os.path.exists(text):
-			if re.search(r'\w:\\', text):
-				if re.search(r'[.]', text[-4:]):
-					splittext = text.split('\\')
-					textpath = splittext[1:-1]
-					cleanpath = '\\'.join(textpath)
+		if re.search(r'\w:\\', text):
+			if os.path.exists(text):
+				if re.search(r'\w:\\', text):
+					if re.search(r'[.]', text[-4:]):
+						
+						clean_path = '\\'.join((text.split('\\'))[1:-1])
+						if os.path.exists(backup_dir + '\\' + clean_path):
+							print 'Making backup of', text, '\n', 'in', os.path.abspath(backup_dir), '\n'
+							shutil.copy(text, backup_dir + '\\' + clean_path)
+						else:
+							os.makedirs(backup_dir + '\\' + clean_path)
+							shutil.copy(text, backup_dir + '\\' + clean_path)
+			
+					else:
+						clean_path = '\\'.join((text.split('\\'))[1:])
+						if os.path.exists(backup_dir + '\\' + clean_path):
+							pass
+						else:
+							os.makedirs(backup_dir + '\\' + clean_path)
+			else:
+				print 'Path: ',text,"doesn't exist"
+
+		elif re.search('HKEY.+', text):
+			
+			#reg_query = 'REG QUERY ' + '"' + text + '"'
+			#text = '"'+text+'"'
+			print text
+			reg_query = subprocess.call(['REG', 'QUERY', '"'+ text +'"'])
+			print 'REG', 'QUERY', '"'+ text +'"'
+			print 'about to do this QUERY: ', reg_query
+						
+			# (status, output) = commands.getstatusoutput(reg_query)
+			# if status:
+				# sys.stderr.write('there was a QUERY error: ' + output + '\n')
+				# sys.exit(1)
+			# else:
+			backup_filename = (text.split('\\')[-1]) + '.reg'
 				
-					if os.path.exists(BackupDir + '\\' + cleanpath):
-						shutil.copy(text, BackupDir + '\\' + cleanpath)
-					else:
-						os.makedirs(BackupDir + '\\' + cleanpath)
-						shutil.copy(text, BackupDir + '\\' + cleanpath)
+			print 'Making backup of', text, '\n', 'in', os.path.abspath(backup_dir), '\n'
 			
-				else:
-					splittext = text.split('\\')
-					textpath = splittext[1:]
-					cleanpath = '\\'.join(textpath)
-
-					if os.path.exists(BackupDir + '\\' + cleanpath):
-						#print BackupDir
-						print '\n' + text
-						shutil.copytree(text, BackupDir + '\\')
-					else:
-						print BackupDir + '\\' + cleanpath
-						os.makedirs(BackupDir + '\\' + cleanpath)
-						shutil.copytree(text, BackupDir + '\\')
-		else:
-			print 'Path: ',text,"doesn't exist"
-
+			#reg_export = 'REG EXPORT ' + text, ' ', '"' + backup_dir + '\\' + backup_filename
+			print 'REG EXPORT ' + '"'+ text +'"', ' ', '"'+ backup_dir +'\\'+ backup_filename +'"'
 			
+			reg_export = subprocess.call(['REG', 'EXPORT', '"'+ text +'"' +' ' +'"'+ backup_dir +'\\'+ backup_filename +'"'])
+			print 'about to do this EXPORT: ', reg_export
+				
+			# (status, output) = commands.getstatusoutput(reg_export)
+			# if status:
+				# sys.stderr.write('there was an EXPORT error: ' + output + '\n')
+				# #sys.exit(1)
+			# else:
+			print backup_filename, ' - stored.'
+		
+		
+		
   
 def main():
 	args = sys.argv[1:]
@@ -85,7 +109,7 @@ def main():
 
 	else:
 		#print List(sys.argv[1])
-		removebackup(List(sys.argv[1]))
+		backup_and_remove(List(sys.argv[1]))
 		
 if __name__ == '__main__':
 	main()
