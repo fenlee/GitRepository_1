@@ -3,91 +3,73 @@
 import re, os, sys, commands, shutil
 
 
-def List(filename):
-	f = open(filename, 'rU')
-	text = f.read()
+def items_to_cleanup(mixed_txt_file):
+	file_open = open(mixed_txt_file, 'rU')
+	content = file_open.read()
   
   # Get list of paths to file and attention reg values
-	check_match = re.search(r'\w:\\|HKEY', text)
+	check_match = re.search(r'\w:\\|HKEY', content)
 	if not check_match:
 		sys.stderr.write('Attention lines not found !\n')
 		sys.exit(1)
 
-	target_list = re.findall('[A-Z]:.+|HKEY.+', text)
+	target_list = re.findall('[A-Z]:.+|HKEY.+', content)
 	
-	clean_list = []
+	list_of_items_to_cleanup = []
 	for idx in range(len(target_list)):
 		if 'Mozilla\Firefox\Profiles' in target_list[idx]:
-			match = re.search(r'[A-Z]:\\\w+\\\w+\\\w+\\\w+\\Mozilla\\Firefox\\Profiles\\\w+\.\w+', text)
-			if match.group() not in clean_list:
-				clean_list.append(match.group())
+			match = re.search(r'[A-Z]:\\\w+\\\w+\\\w+\\\w+\\Mozilla\\Firefox\\Profiles\\\w+\.\w+', content)
+			if match.group() not in list_of_items_to_cleanup:
+				list_of_items_to_cleanup.append(match.group())
 		else:
-			clean_list.append(target_list[idx])
+			list_of_items_to_cleanup.append(target_list[idx])
 		
-	return clean_list
+	return list_of_items_to_cleanup
 	
 	
-def backup(list):
+def backup_before_cleanup(list_of_items_to_cleanup):
 	backup_dir = 'remove_it_backup'
-	if os.path.exists(backup_dir):
-		backup_dir = os.path.abspath(backup_dir)
-
-	else:
+	if not os.path.exists(backup_dir):
 		os.mkdir(backup_dir)
-		backup_dir = os.path.abspath(backup_dir)
+	backup_dir = (os.path.abspath(backup_dir) + '\\')
+				
+	for content in list_of_items_to_cleanup:
+		if re.search(r'\w:\\', content) and re.search(r'[.]', content[-4:]):
+			backup_destination = backup_dir + '\\'.join((content.split('\\'))[1:-1])
+			print 'Making backup of', content, '\n', 'in', backup_dir, '\n'
+			if not os.path.exists(backup_destination):
+				os.makedirs(backup_destination)
+			shutil.copy(content, backup_destination)
 		
-	for text in list:
-		if re.search(r'\w:\\', text):
-			if os.path.exists(text):
-				if re.search(r'\w:\\', text):
-					if re.search(r'[.]', text[-4:]):
-						
-						clean_path = '\\'.join((text.split('\\'))[1:-1])
-						if os.path.exists(backup_dir + '\\' + clean_path):
-							print 'Making backup of', text, '\n', 'in', backup_dir, '\n'
-							shutil.copy(text, backup_dir + '\\' + clean_path)
-							
-						else:
-							os.makedirs(backup_dir + '\\' + clean_path)
-							shutil.copy(text, backup_dir + '\\' + clean_path)
-			
-					else:
-						clean_path = '\\'.join((text.split('\\'))[1:])
-						if os.path.exists(backup_dir + '\\' + clean_path):
-							pass
-						else:
-							os.makedirs(backup_dir + '\\' + clean_path)
-			else:
-				print 'Path: ',text,"doesn't exist"
+		elif re.search(r'\w:\\', content):
+			backup_destination = backup_dir + '\\'.join((content.split('\\'))[1:])
+			if not os.path.exists(backup_destination):
+				os.makedirs(backup_destination)
 
-		elif re.search('HKEY.+', text):
-			reg_query = 'REG QUERY' +' '+'"'+ text +'"'
+		elif content.startswith('HKEY'):
+			reg_query = 'REG QUERY "{}"'.format(content)
 			if os.system(reg_query) == 0:
-				print '"'+ text +'"', ' exists !!!', 'Making backup on', '\n', os.path.abspath(backup_dir), '\n'
-				backup_filename = (text.split('\\')[-1]) + '.reg'
-				reg_export = 'REG EXPORT ' +'"'+ text +'"'+ ' ' +'"'+ backup_dir +'\\'+ backup_filename +'"'
+				print '"{}"'.format(content), 'found ...', 'Making backup on', '\n', os.path.abspath(backup_dir), '\n'
+				backup_filename = (content.split('\\')[-1]) + '.reg'
+				reg_export = 'REG EXPORT "{}"'.format(content) + ' ' + '"{}"'.format(backup_dir + backup_filename)
+								
 				if os.system(reg_export) == 0:
-					print backup_filename, ' - stored.', '\n'
+					print 'file', backup_filename, '- passed.', '\n'
 					
 				else:
-						print 'There is an error durring save', backup_filename, 'to', '\n', os.path.abspath(backup_dir), '\n'
-						
-			else:
-				print '"'+ text +'"', "-doesn't exist inside win register", '\n'
-						
-				
+					print 'There is an error durring save', backup_filename, 'to', '\n', os.path.abspath(backup_dir), '\n'
+		else:
+			print  '"{}"'.format(content), "- doesn't exist", '\n'
   
 def main():
 	args = sys.argv[1:]
-
  
 	if not args:
 		print 'usage: logfile'
 		sys.exit(1)
 
 	else:
-		#print List(sys.argv[1])
-		backup(List(sys.argv[1]))
+		backup_before_cleanup(items_to_cleanup(sys.argv[1]))
 		
 if __name__ == '__main__':
 	main()
